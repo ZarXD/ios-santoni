@@ -16,7 +16,7 @@ on:
         description: make -k (collect all compile errors in one run)
         default: "true"
   push:
-      branches: [main, santoni, riva]
+    branches: [main, santoni, riva]
     paths:
       - "xnu/patches/**"
       - ".github/workflows/xnu.yml"
