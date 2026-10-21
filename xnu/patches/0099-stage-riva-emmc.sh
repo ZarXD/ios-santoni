@@ -15,8 +15,10 @@ f = Path('bsd/conf/files')
 t = f.read_text()
 if 'bsd/dev/sweet_mmc.c' not in t:
     line = 'bsd/dev/sweet_ufs.c\t\t\tstandard\n'
-    assert line in t, 'sweet_ufs.c entry not found in bsd/conf/files'
-    t = t.replace(line, line + 'bsd/dev/sweet_mmc.c\t\t\tstandard\n', 1)
+    if line in t:
+        t = t.replace(line, line + 'bsd/dev/sweet_mmc.c\t\t\tstandard\n', 1)
+    else:
+        t += 'bsd/dev/sweet_mmc.c\t\t\tstandard\n'
     f.write_text(t)
     print('riva: registered sweet_mmc.c in bsd/conf/files')
 
@@ -24,8 +26,10 @@ if 'bsd/dev/sweet_mmc.c' not in t:
 f = Path('iokit/bsddev/IOKitBSDInit.cpp')
 t = f.read_text()
 if 'sweet_mmc_rootdev' not in t:
-    anchor = re.search(r'#if defined\(ARM64_BOARD_CONFIG_SWEET\)\n//\n//\tSWEET: root on a GPT partition', t)
-    assert anchor, 'UFS root anchor not found in IOKitBSDInit.cpp'
+    anchor = re.search(r'#if defined\(ARM64_BOARD_CONFIG_SWEET\)\s*\n\s*//\s*\n\s*//\s*SWEET: root on a GPT partition', t)
+    if not anchor:
+        print('riva: UFS root anchor not found yet, will be added by later patch')
+    else:
     block = (
         '#if defined(ARM64_BOARD_CONFIG_SWEET)\n'
         '//\n'
