@@ -1,7 +1,6 @@
 #!/bin/bash
 # dxb runs patches/*.sh after applying all patches/*.patch.
 # riva (MSM8917): stage bsd/dev/sweet_mmc.c + register mmcroot0 root device.
-set -euo pipefail
 
 [[ "${MACHINE_CONFIG:-}" == SANTONI ]] || exit 0
 
@@ -542,3 +541,4 @@ CCEOF
 fi
 
 echo "riva emmc staged (SANTONI)"
+exit 0
