@@ -10,13 +10,13 @@ on:
         description: RELEASE / DEVELOPMENT / DEBUG
         default: DEVELOPMENT
       machine_config:
-        description: xnu MACHINE_CONFIG
+        description: xnu MACHINE_CONFIG (SANTONI = 4K-pages A53 board config, reused for riva)
         default: SANTONI
       keep_going:
         description: make -k (collect all compile errors in one run)
         default: "true"
   push:
-    branches: [main, santoni]
+      branches: [main, santoni, riva]
     paths:
       - "xnu/patches/**"
       - ".github/workflows/xnu.yml"
