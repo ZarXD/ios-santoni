@@ -27,32 +27,32 @@ f = Path('iokit/bsddev/IOKitBSDInit.cpp')
 t = f.read_text()
 if 'sweet_mmc_rootdev' not in t:
     anchor = re.search(r'#if defined\(ARM64_BOARD_CONFIG_SWEET\)\s*\n\s*//\s*\n\s*//\s*SWEET: root on a GPT partition', t)
-    if not anchor:
-        print('riva: UFS root anchor not found yet, will be added by later patch')
+    if anchor:
+        block = (
+            '#if defined(ARM64_BOARD_CONFIG_SWEET)\n'
+            '//\n'
+            '//\tSWEET: root on eMMC (riva, bsd/dev/sweet_mmc.c)\n'
+            '//\n'
+            '\tif (strcmp(rdBootVar, "mmcroot0") == 0) {\n'
+            '\t\textern int sweet_mmc_rootdev(dev_t *dev);\n'
+            '\t\tOSSafeReleaseNULL(matching);\n'
+            '\t\tint mmc_error = sweet_mmc_rootdev(root);\n'
+            '\t\tif (mmc_error) {\n'
+            '\t\t\tpanic("IOFindBSDRoot: SWEET eMMC root %s unavailable: %d", rdBootVar, mmc_error);\n'
+            '\t\t}\n'
+            '\t\tstrlcpy(rootName, rdBootVar, rootNameSize);\n'
+            '\t\tIOLog("BSD root: %s, major %d, minor %d\\n", rootName, major(*root), minor(*root));\n'
+            '\t\t*oflags = 0;\n'
+            '\t\tgoto iofrootx;\n'
+            '\t}\n'
+            '#endif\n'
+            '\n'
+        )
+        t = t[:anchor.start()] + block + t[anchor.start():]
+        f.write_text(t)
+        print('riva: added rd=mmcroot0 branch to IOFindBSDRoot')
     else:
-    block = (
-        '#if defined(ARM64_BOARD_CONFIG_SWEET)\n'
-        '//\n'
-        '//\tSWEET: root on eMMC (riva, bsd/dev/sweet_mmc.c)\n'
-        '//\n'
-        '\tif (strcmp(rdBootVar, "mmcroot0") == 0) {\n'
-        '\t\textern int sweet_mmc_rootdev(dev_t *dev);\n'
-        '\t\tOSSafeReleaseNULL(matching);\n'
-        '\t\tint mmc_error = sweet_mmc_rootdev(root);\n'
-        '\t\tif (mmc_error) {\n'
-        '\t\t\tpanic("IOFindBSDRoot: SWEET eMMC root %s unavailable: %d", rdBootVar, mmc_error);\n'
-        '\t\t}\n'
-        '\t\tstrlcpy(rootName, rdBootVar, rootNameSize);\n'
-        '\t\tIOLog("BSD root: %s, major %d, minor %d\\n", rootName, major(*root), minor(*root));\n'
-        '\t\t*oflags = 0;\n'
-        '\t\tgoto iofrootx;\n'
-        '\t}\n'
-        '#endif\n'
-        '\n'
-    )
-    t = t[:anchor.start()] + block + t[anchor.start():]
-    f.write_text(t)
-    print('riva: added rd=mmcroot0 branch to IOFindBSDRoot')
+        print('riva: UFS root anchor not found yet, will be added by later patch')
 PY
 
 # 3) Driver source: extract bsd/dev/sweet_mmc.c from the patch in this dir.
