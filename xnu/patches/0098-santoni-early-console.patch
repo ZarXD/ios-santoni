@@ -1,12 +1,14 @@
 diff --git a/osfmk/arm64/sweet_early.c b/osfmk/arm64/sweet_early.c
+index 6928957..6b7d3a4 100644
 --- a/osfmk/arm64/sweet_early.c
 +++ b/osfmk/arm64/sweet_early.c
-@@ -10,6 +10,25 @@
+@@ -11,6 +11,26 @@
  #include <stdint.h>
  #include <kern/misc_protos.h>
  
 +#if defined(SANTONI)
-+#define EARLY_FB ((volatile uint8_t *)(uintptr_t)0x90001000)
++static volatile uint8_t *early_fb = (volatile uint8_t *)(uintptr_t)0x90001000;
++#define EARLY_FB early_fb
 +#define EARLY_W 720u
 +#define EARLY_H 1280u
 +#define EARLY_STRIDE 2160u
@@ -24,10 +26,10 @@ diff --git a/osfmk/arm64/sweet_early.c b/osfmk/arm64/sweet_early.c
 +	p[2] = (uint8_t)((c >> 16) & 0xff);// Red
 +}
 +#else
- #define EARLY_FB ((volatile uint32_t *)(uintptr_t)0x9c000000)
+ static volatile uint32_t *early_fb = (volatile uint32_t *)(uintptr_t)0x9c000000;
+ #define EARLY_FB early_fb
  #define EARLY_WIDTH 1080u
- #define EARLY_HEIGHT 2400u
-@@ -20,6 +39,7 @@
+@@ -21,6 +41,7 @@
  #define EARLY_CELL_H (16u * EARLY_SCALE)
  #define EARLY_ROWS ((EARLY_HEIGHT - 32u) / EARLY_CELL_H)
  #define EARLY_COLS (EARLY_WIDTH / EARLY_CELL_W)
@@ -35,7 +37,7 @@ diff --git a/osfmk/arm64/sweet_early.c b/osfmk/arm64/sweet_early.c
  
  extern unsigned char iso_font[256 * 16];
  
-@@ -31,10 +51,18 @@ static unsigned int early_started, early_disabled, early_panicking;
+@@ -31,12 +52,20 @@
  static void
  sweet_early_clear_row(void)
  {
@@ -54,7 +56,10 @@ diff --git a/osfmk/arm64/sweet_early.c b/osfmk/arm64/sweet_early.c
  	}
 +#endif
  }
-@@ -64,13 +92,23 @@ sweet_early_putc(char c)
+ 
+ void
+@@ -64,6 +93,15 @@
+ 	const unsigned char *glyph = iso_font + (unsigned char)c * 16;
  	for (unsigned int gy = 0; gy < 16; gy++) {
  		for (unsigned int sy = 0; sy < EARLY_SCALE; sy++) {
 +#if defined(SANTONI)
@@ -69,31 +74,43 @@ diff --git a/osfmk/arm64/sweet_early.c b/osfmk/arm64/sweet_early.c
  			volatile uint32_t *line = EARLY_FB +
  			    (early_row * EARLY_CELL_H + gy * EARLY_SCALE + sy) * EARLY_STRIDE +
  			    early_col * EARLY_CELL_W;
- 			for (unsigned int gx = 0; gx < 8; gx++) {
- 				uint32_t pixel = (glyph[gy] & (1u << gx)) ? 0xffffffffu : 0xff000000u;
- 				for (unsigned int sx = 0; sx < EARLY_SCALE; sx++) {
+@@ -73,6 +111,7 @@
  					line[gx * EARLY_SCALE + sx] = pixel;
  				}
  			}
 +#endif
  		}
  	}
-@@ -93,10 +132,18 @@ sweet_early_mark(unsigned int stage, const char *label)
- 	if (early_disabled || stage > 8) {
+ 	early_col++;
+@@ -93,11 +132,19 @@
  		return;
  	}
- 	uint32_t color = 0xff00ff00u | (stage * 28u << 16);
+ 	uint32_t color = 0xff00ff00u | ((stage & 7u) * 32u << 16);
 +#if defined(SANTONI)
 +	for (unsigned int y = (EARLY_H > 32 ? EARLY_H - 32 : 0); y < EARLY_H; y++) {
-+		for (unsigned int x = stage * 64; x < (stage + 1) * 64; x++) {
++		for (unsigned int x = stage * 48; x < (stage + 1) * 48; x++) {
 +			early_pixel24(x, y, color);
 +		}
 +	}
 +#else
  	for (unsigned int y = EARLY_HEIGHT - 32; y < EARLY_HEIGHT; y++) {
- 		for (unsigned int x = stage * 64; x < (stage + 1) * 64; x++) {
+ 		for (unsigned int x = stage * 48; x < (stage + 1) * 48; x++) {
  			EARLY_FB[y * EARLY_STRIDE + x] = color;
  		}
  	}
 +#endif
  	__asm__ volatile("dsb sy" ::: "memory");
+ 	sweet_early_string("SWEET EARLY ");
+ 	if (stage >= 10) {
+@@ -129,7 +176,11 @@
+ sweet_early_relocate(uint64_t base)
+ {
+ 	sweet_early_mark(8, "leaving bootstrap TTBR0");
++#if defined(SANTONI)
++	early_fb = (volatile uint8_t *)(uintptr_t)base;
++#else
+ 	early_fb = (volatile uint32_t *)(uintptr_t)base;
++#endif
+ 	__asm__ volatile("dsb sy" ::: "memory");
+ 	sweet_early_mark(9, "kernel framebuffer VA live");
+ }

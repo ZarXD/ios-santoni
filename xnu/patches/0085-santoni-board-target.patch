@@ -1,5 +1,15 @@
+diff --git a/pexpert/pexpert/arm64/board_config.h b/pexpert/pexpert/arm64/board_config.h
 --- a/pexpert/pexpert/arm64/board_config.h
 +++ b/pexpert/pexpert/arm64/board_config.h
+@@ -97,7 +97,7 @@
+ #define CORE_NCTRS                     8 /* Placeholder; KPC is not enabled for this target */
+ #endif  /* ARM64_BOARD_CONFIG_BCM2837 */
+ 
+-#ifdef ARM64_BOARD_CONFIG_SWEET
++#if defined(ARM64_BOARD_CONFIG_SWEET) && !defined(ARM64_BOARD_CONFIG_SANTONI)
+ #include <pexpert/arm64/SWEET.h>
+ 
+ #define MAX_L2_CLINE                   6
 @@ -108,6 +108,16 @@
  
  #endif  /* ARM64_BOARD_CONFIG_SWEET */
@@ -17,6 +27,7 @@
  #ifdef ARM64_BOARD_CONFIG_VMAPPLE
  #include <pexpert/arm64/VMAPPLE.h>
  
+diff --git a/pexpert/pexpert/arm64/Makefile b/pexpert/pexpert/arm64/Makefile
 --- a/pexpert/pexpert/arm64/Makefile
 +++ b/pexpert/pexpert/arm64/Makefile
 @@ -18,6 +18,7 @@
@@ -27,6 +38,7 @@
  	SWEET.h
  
  
+diff --git a/makedefs/MakeInc.def b/makedefs/MakeInc.def
 --- a/makedefs/MakeInc.def
 +++ b/makedefs/MakeInc.def
 @@ -29,7 +29,7 @@
@@ -38,19 +50,30 @@
  
  endif
  
-@@ -62,6 +62,7 @@
- MACHINE_FLAGS_ARM64_VMAPPLE = -DARM64_BOARD_CONFIG_VMAPPLE              -march=armv8.5a
- MACHINE_FLAGS_ARM64_BCM2837 = -DARM64_BOARD_CONFIG_BCM2837
- MACHINE_FLAGS_ARM64_SWEET = -DARM64_BOARD_CONFIG_SWEET                -march=armv8.2-a+crypto
+@@ -64,6 +64,7 @@
+ # topaz: Cortex-A53/A73 are ARMv8.0 (no LSE atomics, RCpc, PAN or FP16). An explicit
+ # -mcpu: -arch arm64 otherwise keeps clang's apple-m1 default and its LSE/RCpc features
+ MACHINE_FLAGS_ARM64_SWEET = -DARM64_BOARD_CONFIG_SWEET                -mcpu=cortex-a53
 +MACHINE_FLAGS_ARM64_SANTONI = -DARM64_BOARD_CONFIG_SANTONI 	-mcpu=cortex-a53
  
  
- 
+ #
+@@ -262,8 +263,8 @@
+ # Without embdedded device map, use a default arch string
+ export ARCH_STRING_FOR_CURRENT_MACHINE_CONFIG := $(shell echo $(CURRENT_ARCH_CONFIG) | tr A-Z a-z)
+ ifneq ($(filter arm64,$(ARCH_STRING_FOR_CURRENT_MACHINE_CONFIG)),)
+-# sweet's Cortex-A76/A55 have no pointer authentication: stay plain arm64
+-ifneq ($(CURRENT_MACHINE_CONFIG),SWEET)
++# sweet and santoni have no pointer authentication: stay plain arm64
++ifeq ($(filter SWEET SANTONI,$(CURRENT_MACHINE_CONFIG)),)
+ export ARCH_STRING_FOR_CURRENT_MACHINE_CONFIG := arm64e
+ endif
+ endif
 diff --git a/pexpert/pexpert/arm64/SANTONI.h b/pexpert/pexpert/arm64/SANTONI.h
 new file mode 100644
 --- /dev/null
 +++ b/pexpert/pexpert/arm64/SANTONI.h
-@@ -0,0 +1,29 @@
+@@ -0,0 +1,30 @@
 +#ifndef _PEXPERT_ARM64_SANTONI_H
 +#define _PEXPERT_ARM64_SANTONI_H
 +
@@ -74,6 +97,7 @@ new file mode 100644
 +/* Qualcomm MSM8937 has a GICv2 distributor and CPU interface, not GICv3. */
 +#define HAS_GIC_V3                    0
 +#define SWEET_VTIMER_INTID            20
++#define SWEET_IPI_SGI                 1
 +
 +#ifndef ASSEMBLER
 +#define PLATFORM_PANIC_LOG_DISABLED
@@ -97,14 +121,14 @@ new file mode 100644
 +#
 +# All rights reserved.  The CMU software License Agreement
 +# specifies the terms and conditions for use and redistribution.
-+#  
++#
 +######################################################################
 +#
 +#  Master Apple configuration file (see the master machine independent
 +#  configuration file for a description of the file format).
 +#
 +######################################################################
-+#  
++#
 +#  Standard Apple OS Configurations:
 +#  -------- ----- -- ---------------
 +#
@@ -145,7 +169,7 @@ new file mode 100644
 +#  LIBKERN_RELEASE =[ LIBKERN_BASE zlib ]
 +#  LIBKERN_DEV =    [ LIBKERN_BASE zlib iotracking ]
 +#  LIBKERN_DEBUG =  [ LIBKERN_BASE zlib iotracking ]
-+#  PERF_DBG_BASE =  [ config_dtrace mach_kdp config_serial_kdp kdp_interactive_debugging config_kdp_coredump_encryption config_pervasive_energy PERFMON_BASE kperf ]
++#  PERF_DBG_BASE =  [ config_dtrace mach_kdp config_serial_kdp kdp_interactive_debugging config_kdp_coredump_encryption config_pervasive_energy PERFMON_BASE kperf kpc ]
 +#  PERF_DBG_RELEASE=[ PERF_DBG_BASE ist_kdebug ]
 +#  PERF_DBG_DEV =   [ PERF_DBG_BASE lock_stats zleaks alternate_debugger sched_hygiene_debug config_debug_syscall_rejection config_iotrace ]
 +#  PERF_DBG_DEBUG = [ PERF_DBG_BASE lock_stats zleaks alternate_debugger sched_hygiene_debug config_debug_syscall_rejection config_iotrace ]

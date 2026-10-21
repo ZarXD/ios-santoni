@@ -2,22 +2,33 @@
 
 ## Agent handoff / active work (2026-10-21, latest)
 
-### >>> UPDATE 2026-10-21: Phase 3 CI Patch Recount & Context Normalization EXECUTED & COMMITTED <<<
+### >>> UPDATE 2026-10-21: Phase 3 CI Fix — Linker Undefined Symbols Resolved <<<
 
-- **Issue Diagnosed:**
-  - Remote GitHub Actions CI run `39529820707` failed at step 6 (`Build`) with `Unsupported CURRENT_MACHINE_CONFIG SANTONI. Stop.`.
-  - Diagnosis: `dxb/build.sh` skipped `0085-santoni-board-target.patch` (`error: corrupt patch at line 106`) and `0017-santoni-gicv2-rtclock.patch` (`error: corrupt patch at line 12`). Because `0085` was skipped, `SANTONI` was never added to `SUPPORTED_ARM64_MACHINE_CONFIGS` in `MakeInc.def`.
-  - Underlying cause: Hunk line count headers (`@@ -old,count +new,count @@`) and context lines in `0017`, `0082`, `0085`, `0093`, `0094`, `0097`, and `0098` did not match the file state after earlier sweet patches (`0004`, `0008`, `0010`, `0065`) were applied.
-- **Fix Applied & Verified:**
-  - `xnu/patches/0017-santoni-gicv2-rtclock.patch`: Re-generated exact unified diff against post-0004 `pe_fiq.c`, `sleh.c`, and `protos.h`. Verified 100% clean application with 0 corrupt lines.
-  - `xnu/patches/0082-santoni-4k-entry.patch`: Re-generated exact unified diff against post-0010 `start.s`. Preserves `#elif defined(SWEET)` fallback and adds SANTONI physical markers/simplefb mappings cleanly.
-  - `xnu/patches/0085-santoni-board-target.patch`: Re-aligned hunks with post-0004 `board_config.h`, `Makefile`, and `MakeInc.def`. Corrected hunk counts on new files `SANTONI.h` (+1,29) and `MASTER.arm64.santoni` (+1,113).
-  - `xnu/patches/0093-santoni-39bit-kernel-va.patch`: Re-aligned 39-bit kernel VA link address hunk against post-0085 `MakeInc.def`.
-  - `xnu/patches/0094-santoni-cortex-a53-codegen.patch`: Re-aligned `-mcpu=cortex-a53` codegen hunk against post-0093 `MakeInc.def`.
-  - `xnu/patches/0097-santoni-zone-va-size.patch`: Replaced `#if XNU_PLATFORM_MacOSX` deletion line and normalized hunk count (10 lines).
-  - `xnu/patches/0098-santoni-early-console.patch`: Normalized hunk count `-64,13 +92,23` for `sweet_early.c` simplefb blitter.
-  - `.github/workflows/xnu.yml`: Added `git apply --recount --whitespace=fix` flag replacement in `dxb/build.sh` for robust patch application on macOS runners.
-  - Verification: All 10 santoni patches verified sequentially in isolated test repository against `xnu-8796.141.3`. All applied cleanly with 0 errors.
+- **Issues Diagnosed via CI Run 39547830556:**
+  - All source files across Mach, BSD, Skywalk, IOKit, and Libkern compiled cleanly (including `ast.o` and `processor.o`).
+  - Build successfully proceeded to the link step: `ld ... -o .../kernel.development.santoni.unstripped`.
+  - Link failed with 8 undefined symbols:
+    1. `_gicc_base` (from `_sleh_irq` in `sleh.o`)
+    2. `_sweet_vtimer_intid` (from `_sleh_irq` in `sleh.o`)
+    3. `_sweet_console_copy_dirty` (from `SweetFramebuffer.cpo`)
+    4. `_sweet_console_muted` (from `SweetFramebuffer.cpo`)
+    5. `_sweet_console_retarget` (from `SweetFramebuffer.cpo`)
+    6. `_sweet_console_show_hook` (from `SweetFramebuffer.cpo`)
+    7. `_sweet_sample_task` (from `sweet_sample.o`)
+    8. `_sweet_ufs_read_part` (from `TopazModem.cpo`)
+  - **Root Cause Analysis:**
+    - Symbols 1 & 2: `pe_fiq.c` guarded its entire implementation with `#if HAS_GIC_V3`. Because santoni has Cortex-A53 with GICv2 (`HAS_GIC_V3 == 0`), `pe_fiq.c` fell into an empty stub `pe_init_fiq() {}`, eliding `sweet_vtimer_intid` and `gicc_base` definitions.
+    - Symbols 3-8: The common sweet platform drivers (`sweet_ufs.c`, `sweet_sample.c`, `video_console.c`, `serial_console.c`, `exception.c`) were guarded by `#if defined(ARM64_BOARD_CONFIG_SWEET)`. In `MakeInc.def`, `MACHINE_FLAGS_ARM64_SANTONI` previously only defined `-DARM64_BOARD_CONFIG_SANTONI`, omitting `-DARM64_BOARD_CONFIG_SWEET` so all these driver implementations were compiled out as empty files.
+  - **Fixes Applied & Verified:**
+    1. In `xnu/patches/0017-santoni-gicv2-rtclock.patch`:
+       - Changed `pe_fiq.c` guard to `#if HAS_GIC_V3 || defined(SANTONI)` so that `sweet_vtimer_intid` and `gicc_base` are defined.
+       - Guarded GICv3 redistributor loops with `#if HAS_GIC_V3`.
+       - Added `return;` after santoni's GICv2 configuration to prevent fallthrough into GICv3 `ICC_IGRPEN0_EL1` system registers.
+    2. In `xnu/patches/0085-santoni-board-target.patch`:
+       - Updated `pexpert/pexpert/arm64/board_config.h` so `#ifdef ARM64_BOARD_CONFIG_SWEET` checks `!defined(ARM64_BOARD_CONFIG_SANTONI)` to prevent including `SWEET.h` when building santoni.
+    3. In `xnu/patches/0094-santoni-cortex-a53-codegen.patch`:
+       - Added `-DARM64_BOARD_CONFIG_SWEET` to `MACHINE_FLAGS_ARM64_SANTONI` in `MakeInc.def`, satisfying all shared sweet driver definitions.
+    - Verified all modified patches apply cleanly (`git apply --check`) against runner buildtree.
 - **Physical Device Boot Verification Procedure (Awaiting User Test):**
   1. Place physical Xiaomi Redmi 4X (`santoni`) in fastboot mode (Power + Volume Down).
   2. Boot the assembled image: `fastboot boot shim/out/shim-boot.img`.
@@ -27,8 +38,7 @@
      - Blue rectangular bar: `start.s` Stage 1 MMU active (4K pmap bootstrap).
      - Darwin kernel banner printed to screen: `Darwin Kernel Version 22.6.0: ... DEVELOPMENT_ARM64_SANTONI`.
 - **Next Concrete Action:**
-  - Push commit to `origin/santoni`.
-  - Monitor remote CI run on GitHub Actions for `kernel.development.santoni`.
+  - Commit fixes, push to `origin/santoni`, and monitor the triggered GitHub Actions build to completion.
   - Physical device verification: execute `fastboot boot shim/out/shim-boot.img` on hardware when user wakes up.
 
 - **Plan 03-04 Status:** EXECUTED, VERIFIED, AND COMMITTED (Physical hardware verification awaiting user test)

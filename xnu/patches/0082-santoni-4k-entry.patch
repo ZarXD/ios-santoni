@@ -63,7 +63,7 @@
 +#if defined(SANTONI)
 +	/* Stage 1: write blue block to simplefb after SCTLR_EL1.M MMU activation */
 +	MOV64	x0, (0x90001000 + 720 * 32 * 4)
-+	MOV64	w1, 0x000000ff
++	mov		w1, #0xff
 +	mov		x2, #(720 * 32)
 +1:	str		w1, [x0], #4
 +	subs	x2, x2, #1
