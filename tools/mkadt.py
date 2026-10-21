@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Build the minimal Apple Device Tree that the SANTONI xnu needs to boot.
+"""Build the minimal Apple Device Tree that the RIVA xnu needs to boot.
 
 Only what the early boot path actually reads (see NOTES.md); every MMIO
-address comes from the santoni (Redmi 4X, MSM8937) live FDT.
+address comes from the riva (Redmi 5A, MSM8917) live FDT.
 Usage:  mkadt.py OUT.adt [--dump] [--qemu] [--native]
 """
 import hashlib, os, struct, sys
@@ -16,12 +16,12 @@ MEM_SIZE = 0x60000000  # 1.5 GiB safe budget
 # /arm-io children are relative to this; it must not be 0 (serial_init bails)
 SOC_BASE = 0x01000000
 
-# interrupt-controller@b000000 (santoni MSM8937 QGIC2)
+# interrupt-controller@b000000 (riva MSM8917 QGIC2)
 GICD, GICD_SIZE = 0x0b000000, 0x1000
 GICC, GICC_SIZE = 0x0b002000, 0x1000
 # Continuous splash simplefb left lit by Qualcomm ABL (720x1280 24-bit BGR)
 FB, FB_SIZE = 0x90001000, 720 * 1280 * 3
-SWEET_ECID = 0x53414e544f4e4901  # 'SANTONI' + 1, synthetic
+RIVA_ECID = 0x5249564100000001  # 'RIVA' + 1, synthetic
 FB_W, FB_H, FB_STRIDE = 720, 1280, 720 * 3
 TIMEBASE = 19200000
 VTIMER_INTID = 20
@@ -29,7 +29,7 @@ VTIMER_INTID = 20
 QEMU_GICD, QEMU_GICC, QEMU_TIMEBASE = 0x08000000, 0x08010000, 62500000
 QEMU_VTIMER_INTID = 27
 
-BOOT_MANIFEST_HASH = hashlib.sha384(b'santoni boot manifest').digest()
+BOOT_MANIFEST_HASH = hashlib.sha384(b'riva boot manifest').digest()
 
 # The iOS userland is the iPhone X (iPhone10,3 / D22AP) IPSW. MobileGestalt
 # derives product type, device class, home-button-less UI, artwork etc. from
@@ -78,8 +78,8 @@ def build(seed=None, qemu=False, native=False):
         ('dram-size', u64(mem_size)),
         ('random-seed', seed),
         ('debug-enabled', u32(1)),
-        ('firmware-version', cstr('santoni-shim')),
-        ('system-firmware-version', cstr('santoni-shim')),
+        ('firmware-version', cstr('riva-shim')),
+        ('system-firmware-version', cstr('riva-shim')),
         # iBoot's SHA-384 of the boot manifest; /sbin/mount -P 1 exits unless
         # it exists (bind mounts /private/preboot/<hex>/usr/standalone/firmware,
         # tolerating a missing directory). Fixed stand-in value.
@@ -89,14 +89,14 @@ def build(seed=None, qemu=False, native=False):
         ('crypto-hash-method', cstr('sha2-384')),
         # MobileGestalt's screen class: display-scale (u32, default 0) comes
         # from /chosen, the pixel size from IOMobileFramebuffer.
-        # Santoni 720x1280 @2x = 360x640 points.
+        # Riva 720x1280 @2x = 360x640 points.
         ('display-scale', u32(2)),
         # XNU derives IOPlatformUUID (gethostuuid) from these on arm; without
         # them CFPreferences cannot use kCFPreferencesCurrentHost (no ByHost
         # files), so e.g. DataMigration never records LastSystemVersion and
         # migrates on every boot. Synthetic ECID (not the phone's); chip-id
         # of the A11 that the iPhone X userland expects.
-        ('unique-chip-id', struct.pack('<Q', SWEET_ECID)),
+        ('unique-chip-id', struct.pack('<Q', RIVA_ECID)),
         ('chip-id', u32(0x8015)),
         # Security status as on a dev-fused, undemoted board (tuple 0,0,1,1):
         # MobileGestalt reads these from /chosen, and mobileactivationd's
@@ -114,7 +114,7 @@ def build(seed=None, qemu=False, native=False):
         # with CSR_ALLOW_UNRESTRICTED_FS (vm_unix.c shared region checks).
         node('asmb', [ph(), ('lp-sip0', u64(0x6f)), ('lp-sip1', u32(1))])])
 
-    # Qualcomm MSM8937 Cortex-A53 CPU0 (MPIDR 0x0)
+    # Qualcomm MSM8917 Cortex-A53 CPU0 (MPIDR 0x0)
     cpu0 = node('cpu0', [
         ph(),
         ('device_type', cstr('cpu')),
@@ -211,10 +211,10 @@ def build(seed=None, qemu=False, native=False):
 
     # Identity of the iPhone X whose userland runs here: compatible[0] is
     # hw.model/hw.target (D22AP), model is hw.machine/hw.product
-    # (iPhone10,3). 'xiaomi,santoni' and qcom,msm8937 match our target silicon.
+    # (iPhone10,3). 'xiaomi,riva' and qcom,msm8917 match our target silicon.
     return node('device-tree', [
         ph(),
-        ('compatible', cstr('D22AP') + cstr('iPhone10,3') + cstr('xiaomi,santoni') + cstr('qcom,msm8937') + cstr('AppleARM')),
+        ('compatible', cstr('D22AP') + cstr('iPhone10,3') + cstr('xiaomi,riva') + cstr('qcom,msm8917') + cstr('AppleARM')),
         ('model', cstr('iPhone10,3')),
         ('target-type', cstr('D22')),
         ('target-sub-type', cstr('D22AP')),

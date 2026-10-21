@@ -9,7 +9,7 @@ diff --git a/iokit/KernelConfigTables.cpp b/iokit/KernelConfigTables.cpp
 +    "   {"
 +    "     'IOClass'         = SweetPlatformExpert;"
 +    "     'IOProviderClass' = IOPlatformExpertDevice;"
-+    "     'IONameMatch'     = 'xiaomi,sweet';"
++    "     'IONameMatch'     = 'xiaomi,riva';"
 +    "     'IOProbeScore'    = 10000:32;"
 +    "   },"
 +#endif
